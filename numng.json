@@ -1,0 +1,7 @@
+{
+  "name": "jan9103/syrup",
+  "linkin": {
+    "nutils:libs/nutils": {"name": "jan9103/nutils", "version": "~1.0.1"}
+  },
+  "registry": [{"source_uri": "https://github.com/Jan9103/numng_repo", "package_format": "numng", "path_offset": "repo"}]
+}
