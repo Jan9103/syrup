@@ -40,7 +40,8 @@ it is impossible to get information about the `vi` mode.
     2. (optional) module configuration (a record)
     3. (optional) [modifiers][] (a record) (add behaviour, override things, etc)
   * example: `["pwd" {home: true}]`
-* Custom module (closure)
+  * You can register extra ones by adding them to `$env.SYRUP_PROMPT_MODULES`. to avoid name-collisions with future official or 3rd party ones a prefix like `_yourName_moduleName` might make sense.
+* Inline module (closure)
   * you can do whatever you want here - no interference at all.
   * example: `{|| $env.CMD_DURATION_MS}`
 
@@ -49,5 +50,5 @@ it is impossible to get information about the `vi` mode.
 * [modules][]
 * [modifiers][]
 
-[modules]: ./modules.md
+[modules]: ./modules/index.md
 [modifiers]: ./modifiers.md

@@ -39,11 +39,9 @@ const DEFAULT_CONFIG: record = {
   'suffix': $"(ansi grey)\)"
 }
 
-# a translation attempt of /usr/share/git/git-prompt.sh
-
-# nu still does not support constant closure and i don't want this giagntic thing in the main file, so here we go..
-export def git_prompt_module []: nothing -> closure {
-  {|cfg|
+export-env {
+  # source-env ../mod.nu  # avoid load-order problems
+  $env.SYRUP_PROMPT_MODULES.gitprompt = {|cfg|
     let cfg: record = ($DEFAULT_CONFIG | merge deep $cfg)
 
     let repo_info: list<string> = (
@@ -293,5 +291,5 @@ export def git_prompt_module []: nothing -> closure {
     let gitstring = $"($c)($b)(if $f != '' { $'($z)($f)' } else { '' })($sparse)($r)($upstream)($conflict)"
 
     $'($cfg.prefix)($gitstring)($cfg.suffix)(ansi reset)'
-  }  # end of closure
+  }
 }

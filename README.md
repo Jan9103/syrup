@@ -2,39 +2,20 @@
 
 A modular prompt for nushell.  
 
-**PROJECT STATUS:** Alpha. (The parts i care about work, but there might still be bugs, missing basic features, etc)
+**PROJECT STATUS: ALPHA**
+* The parts i care about work
+* You can add what you want with custom modules
+* It is not (yet) stable and config options/.. might get changed at any point
+* The documentation is bad
+* The only reason i published it (already) is that i don't think I'd have the motivation to finish it otherwise
 
-![](screenshot)
+![screenshot](https://jan9103.github.io/syrup/media/00.avif)
 
-## Roadmap (aka planned features)
+(the screenshot is from my setup and just one example of how it can look)
 
-Since i have everything i want i will probably be pretty slow.
+## Usage
 
-* Make [powerline][]-style prompts easier / possible
-* More builtin modules
-  * last command duration (if long)
-  * (session-)history length
-* Examples
-* More git-prompt configuration
-  * Format string for complex parts like `upstream`
-  * cfg variables for symbols
-* right side prompt
-
-## Installation
-
-Using [numng](https://github.com/jan9103/numng_repo): `{"name": "jan9103/syrup", "version": "latest"}`
-
-Otherwise:
-```nu
-### download ###
-git clone --depth 0 https://github.com/jan9103/syrup
-
-### add to config ###
-$"\nsource-env ($env.PWD | path join syrup syrup mod.nu | to json)\n" | save --append $nu.config-path
-```
-
-## Configuration
-
-* [docs](./docs/config.md)
+* [setup](./docs/setup.md)
+* [config docs](./docs/config.md)
 
 [powerline]: https://github.com/b-ryan/powerline-shell

@@ -1,5 +1,5 @@
-use ./gitprompt.nu
 use ./util.nu [find_in_pardirs trip_all_errors]
+
 
 const PWD_DEFAULT: record = {
   'prefix_element': {
@@ -43,7 +43,7 @@ const DATETIME_DEFAULT: record = {
 
 const JOBCOUNT_DEFAULT: record = {
   'show_0': false
-  'format': ' 󱇫{count}'
+  'format': ' 󱇫 {count}'
 }
 
 const CMD_DURATION_DEFAULT: record = {
@@ -56,7 +56,6 @@ const DEFAULT_CFG = {
     []  # empty line
     [
       ["pwd" {} {color: {admin: "red"}}]
-      ["gitprompt"]
       ["overlay"]
       ["jobcount"]
       ['cmd_duration']
@@ -67,89 +66,98 @@ const DEFAULT_CFG = {
   ]
 }
 
-# why are closure not 'const'-able?
-def elements []: nothing -> record { {
-  "overlay": {|cfg|
-    let cfg = ($OVERLAY_DEFAULT | merge deep $cfg)
-    overlay list
-    | where $it not-in $cfg.ignore
-    | if $cfg.limit != null { last $cfg.limit } else { $in }
-    | str join ($cfg.seperator? | default '>')
-    | if ($in | is-empty) { $in } else {
-      {'overlays': $in}
-      | format pattern $cfg.format
-    }
-  }
-
-  "pwd": {|cfg|
-    let cfg: record = ($PWD_DEFAULT | merge deep $cfg)
-    mut bdir: string = ''
-    mut type: string = 'default'
-
-    if $cfg.home {
-      if ($env.PWD | str starts-with $nu.home-path) {
-        $type = 'home'
-        $bdir = $nu.home-path
+export-env {
+  $env.SYRUP_PROMPT_MODULES = {
+    "overlay": {|cfg|
+      let cfg = ($OVERLAY_DEFAULT | merge deep $cfg)
+      overlay list
+      | where $it not-in $cfg.ignore
+      | if $cfg.limit != null { last $cfg.limit } else { $in }
+      | str join ($cfg.seperator? | default '>')
+      | if ($in | is-empty) { $in } else {
+        {'overlays': $in}
+        | format pattern $cfg.format
       }
     }
 
-    if $cfg.git {
-      let gbdir = (
-        $env.PWD | find_in_pardirs '.git'
-        | if $in == null { null } else { $in | path dirname }
-      )
-      if $gbdir != null and ($gbdir | str length) > ($bdir | str length) {
-        $type = 'git'
-        $bdir = $gbdir
+    "pwd": {|cfg|
+      let cfg: record = ($PWD_DEFAULT | merge deep $cfg)
+      mut bdir: string = ''
+      mut type: string = 'default'
+
+      if $cfg.home {
+        if ($env.PWD | str starts-with $nu.home-path) {
+          $type = 'home'
+          $bdir = $nu.home-path
+        }
+      }
+
+      if $cfg.git {
+        let gbdir = (
+          $env.PWD | find_in_pardirs '.git'
+          | if $in == null { null } else { $in | path dirname }
+        )
+        if $gbdir != null and ($gbdir | str length) > ($bdir | str length) {
+          $type = 'git'
+          $bdir = $gbdir
+        }
+      }
+
+      $env.PWD | str replace $bdir '' | str trim --left --char '/'
+      | path split
+      | if $cfg.max_elements != null and ($in | length) > $cfg.max_elements {
+        $type = 'shortened'
+        $in | last $cfg.max_elements
+      } else { $in }
+      | if ($cfg.prefix_element | get $type) == null { $in } else { prepend ($cfg.prefix_element | get $type) }
+      | wrap 'element'
+      | format pattern $cfg.format.element
+      | str join $cfg.seperator
+      | {'path': $in}
+      | format pattern ($cfg.format | get $type)
+    }
+
+    "exitstatus": {|cfg|
+      let cfg = ($EXITSTATUS_DEFAULT | merge deep $cfg)
+      if not $cfg.show_ok and $env._SYRUP_PROMPT_TMP.LAST_EXIT_CODE == 0 { return ''; }
+      {'status': $env._SYRUP_PROMPT_TMP.LAST_EXIT_CODE}
+      | format pattern (if $env._SYRUP_PROMPT_TMP.LAST_EXIT_CODE == 0 { $cfg.format.ok } else { $cfg.format.err })
+    }
+
+    "datetime": {|cfg|
+      let cfg = ($DATETIME_DEFAULT | merge deep $cfg)
+      date now | format date $cfg.format
+    }
+
+    "jobcount": {|cfg|
+      let cfg = ($JOBCOUNT_DEFAULT | merge deep $cfg)
+      let count: int = (job list | length)
+      if $count == 0 and not $cfg.show_0 { return '' }
+      {'count': $count}
+      | format pattern $cfg.format
+    }
+
+    'cmd_duration': {|cfg|
+      let cfg = ($CMD_DURATION_DEFAULT | merge deep $cfg)
+      if $env._SYRUP_PROMPT_TMP.CMD_DURATION_MS > $cfg.min {
+        {'duration': $env._SYRUP_PROMPT_TMP.CMD_DURATION_MS}
+        | format pattern $cfg.format
+      } else {
+        ''
       }
     }
-
-    $env.PWD | str replace $bdir '' | str trim --left --char '/'
-    | path split
-    | if $cfg.max_elements != null and ($in | length) > $cfg.max_elements {
-      $type = 'shortened'
-      $in | last $cfg.max_elements
-    } else { $in }
-    | if ($cfg.prefix_element | get $type) == null { $in } else { prepend ($cfg.prefix_element | get $type) }
-    | wrap 'element'
-    | format pattern $cfg.format.element
-    | str join $cfg.seperator
-    | {'path': $in}
-    | format pattern ($cfg.format | get $type)
   }
 
-  "exitstatus": {|cfg|
-    let cfg = ($EXITSTATUS_DEFAULT | merge deep $cfg)
-    if not $cfg.show_ok and $env._SYRUP_PROMPT_TMP.LAST_EXIT_CODE == 0 { return ''; }
-    {'status': $env._SYRUP_PROMPT_TMP.LAST_EXIT_CODE}
-    | format pattern (if $env._SYRUP_PROMPT_TMP.LAST_EXIT_CODE == 0 { $cfg.format.ok } else { $cfg.format.err })
-  }
-
-  "gitprompt": (gitprompt git_prompt_module)
-
-  "datetime": {|cfg|
-    let cfg = ($DATETIME_DEFAULT | merge deep $cfg)
-    date now | format date $cfg.format
-  }
-
-  "jobcount": {|cfg|
-    let cfg = ($JOBCOUNT_DEFAULT | merge deep $cfg)
-    let count: int = (job list | length)
-    if $count == 0 and not $cfg.show_0 { return '' }
-    {'count': $count}
-    | format pattern $cfg.format
-  }
-
-  'cmd_duration': {|cfg|
-    let cfg = ($CMD_DURATION_DEFAULT | merge deep $cfg)
-    if $env._SYRUP_PROMPT_TMP.CMD_DURATION_MS > $cfg.min {
-      {'duration': $env._SYRUP_PROMPT_TMP.CMD_DURATION_MS}
-      | format pattern $cfg.format
-    } else {
-      ''
+  $env.SYRUP_PROMPT = ($env.SYRUP_PROMPT? | default $DEFAULT_CFG)
+  $env.PROMPT_COMMAND_RIGHT = {|| "" }
+  $env.PROMPT_COMMAND = {||
+    try {
+      render_prompt
+    } catch {|err|
+      $"(ansi red)\n\n=== SYRUP_PROMPT ERROR: ===\n($err)(ansi red)\n=== END OF ERROR ===\n\nPROMPT ERROR > "
     }
   }
-} }
+}
 
 def apply_modifier [cfg: record]: string -> string {
   mut res: string = $in
@@ -186,8 +194,6 @@ def render_prompt []: nothing -> string {
     }
   )
 
-  let ELEMENTS: record = (elements)
-
   $env.SYRUP_PROMPT.prompt
   | each {|line|
     $line
@@ -196,7 +202,7 @@ def render_prompt []: nothing -> string {
         'closure' => { do $element }
         'string' => { $element }
         'list' => {
-          let renderer = ($ELEMENTS | get -i $element.0)
+          let renderer = ($env.SYRUP_PROMPT_MODULES | get -i $element.0)
           if $renderer == null {
             error make {msg: $"ERROR: UNKNOWN ELEMENT: ($element.0)"}
           } else {
@@ -211,16 +217,4 @@ def render_prompt []: nothing -> string {
   }
   | trip_all_errors
   | str join "\n"
-}
-
-export-env {
-  $env.SYRUP_PROMPT = ($env.SYRUP_PROMPT? | default $DEFAULT_CFG)
-  $env.PROMPT_COMMAND_RIGHT = {|| "" }
-  $env.PROMPT_COMMAND = {||
-    try {
-      render_prompt
-    } catch {|err|
-      $"(ansi red)\n\n=== SYRUP_PROMPT ERROR: ===\n($err)(ansi red)\n=== END OF ERROR ===\n\nPROMPT ERROR > "
-    }
-  }
 }
