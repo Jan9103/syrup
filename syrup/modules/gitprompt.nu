@@ -40,7 +40,6 @@ const DEFAULT_CONFIG: record = {
 }
 
 export-env {
-  # source-env ../mod.nu  # avoid load-order problems
   $env.SYRUP_PROMPT_MODULES.gitprompt = {|cfg|
     let cfg: record = ($DEFAULT_CONFIG | merge deep $cfg)
 
