@@ -3,6 +3,7 @@ $env.SYRUP_PROMPT = {
     []  # empty line
     [
       ["pwd" {} {color: {admin: "red"}}]
+      ['git_branch']
       ["overlay"]
       ["jobcount"]
       ['cmd_duration']

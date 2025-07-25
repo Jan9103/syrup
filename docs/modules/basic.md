@@ -95,3 +95,17 @@ const DEFAULT = {
   'format': $' (ansi red){duration}(ansi reset)'
 }
 ```
+
+## git_branch
+
+### Configuration
+
+```nu
+const DEFAULT = {
+  'format': {
+    'branch': $' (ansi green){branch}(ansi reset)'  # (nerdfont git-branch-symbol)
+    'detached': $' (ansi yellow){short_sha}(ansi reset)'  # (nerdfont git-symbol)
+    'not_git': ''
+  }
+}
+```

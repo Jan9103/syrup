@@ -1,5 +1,14 @@
 use ./util.nu [find_in_pardirs trip_all_errors]
+use std/util [null-device]
 
+
+const GIT_BRANCH_DEFAULT: record = {
+  'format': {
+    'branch': $' (ansi green){branch}(ansi reset)'
+    'detached': $' (ansi yellow){short_sha}(ansi reset)'
+    'not_git': ''
+  }
+}
 
 const PWD_DEFAULT: record = {
   'prefix_element': {
@@ -56,6 +65,7 @@ const DEFAULT_CFG = {
     []  # empty line
     [
       ["pwd" {} {color: {admin: "red"}}]
+      ['git_branch']
       ["overlay"]
       ["jobcount"]
       ['cmd_duration']
@@ -146,6 +156,22 @@ export-env {
         ''
       }
     }
+
+    'git_branch': {|cfg|
+      let cfg = ($DATETIME_DEFAULT | merge deep $cfg)
+
+      let branch: string = (try { ^git branch --show-current | str trim } catch {
+        return ($cfg.format.not_git)
+      })
+      if $branch == '' {
+        # detached HEAD (rebase/..)
+        { 'short_sha': (^git rev-parse --short HEAD | str trim)
+        } | format pattern $cfg.format.detached
+      } else {
+        { 'branch': $branch
+        } | format pattern $cfg.format.branch
+      }
+    }
   }
 
   $env.SYRUP_PROMPT = ($env.SYRUP_PROMPT? | default $DEFAULT_CFG)
@@ -198,11 +224,11 @@ def render_prompt []: nothing -> string {
   | each {|line|
     $line
     | par-each --keep-order {|element|
-      match ($element | describe | split row '<' -n 2 | first) {
+      match ($element | describe | split row '<' --number 2 | first) {
         'closure' => { do $element }
         'string' => { $element }
         'list' => {
-          let renderer = ($env.SYRUP_PROMPT_MODULES | get -i $element.0)
+          let renderer = ($env.SYRUP_PROMPT_MODULES | transpose k v | where $it.k == $element.0).0?.v?
           if $renderer == null {
             error make {msg: $"ERROR: UNKNOWN ELEMENT: ($element.0)"}
           } else {
