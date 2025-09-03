@@ -81,6 +81,7 @@ export-env {
     "overlay": {|cfg|
       let cfg = ($OVERLAY_DEFAULT | merge deep $cfg)
       overlay list
+      | if ($in | describe) =~ '^table' { where $it.active == true | get name } else { $in }  # https://www.nushell.sh/blog/2025-09-02-nushell_0_107_0.html#add-active-column-to-overlay-list-16125-toc
       | where $it not-in $cfg.ignore
       | if $cfg.limit != null { last $cfg.limit } else { $in }
       | str join ($cfg.seperator? | default '>')
@@ -243,4 +244,5 @@ def render_prompt []: nothing -> string {
   }
   | trip_all_errors
   | str join "\n"
+  | $"\e[?25h($in)"  # some programs forget to disable "hide cursor" mode
 }
