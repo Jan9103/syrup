@@ -68,7 +68,7 @@ export-env {
       if (
         ($cfg.parts.sparse.show)
         and (not $cfg.parts.sparse.compress)
-        and ((^git config --bool core.sparseCheckout) == true)
+        and ((try { ^git config --bool core.sparseCheckout; true } catch { false }) == true)
       ) { "|SPARSE" } else { "" }
     )
 
