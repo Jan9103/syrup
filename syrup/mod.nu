@@ -23,7 +23,7 @@ export-env {
   $env.config.hooks.pre_execution = (
     $env.config.hooks.pre_execution | append {||
       # prevent further progressive rendering
-      for job in (job list | where ($it.tag | str starts-with 'syrup::sojourn:')) {
+      for job in (job list | where ($it.tag? | default '' | str starts-with 'syrup::sojourn:')) {
         job kill $job.id
       }
     }
