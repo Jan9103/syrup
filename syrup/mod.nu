@@ -142,7 +142,11 @@ export-env {
 
     "jobcount": {|cfg|
       let cfg = ($JOBCOUNT_DEFAULT | merge deep $cfg)
-      let count: int = (job list | length)
+      let count: int = (
+        job list
+        | where not ($it.tag | str starts-with 'syrup::sojourn:')
+        | length
+      )
       if $count == 0 and not $cfg.show_0 { return '' }
       {'count': $count}
       | format pattern $cfg.format
@@ -175,11 +179,20 @@ export-env {
     }
   }
 
+  $env.config.hooks.pre_execution = (
+    $env.config.hooks.pre_execution | append {||
+      for job in (job list | where ($it.tag | str starts-with 'syrup::sojourn:')) {
+        job kill $job.id
+      }
+    }
+  )
+
   $env.SYRUP_PROMPT = ($env.SYRUP_PROMPT? | default $DEFAULT_CFG)
   $env.PROMPT_COMMAND_RIGHT = {|| "" }
   $env.PROMPT_COMMAND = {||
     try {
       render_prompt
+      ""
     } catch {|err|
       $"(ansi red)\n\n=== SYRUP_PROMPT ERROR: ===\n($err)(ansi red)\n=== END OF ERROR ===\n\nPROMPT ERROR > "
     }
@@ -208,9 +221,40 @@ def apply_modifier [cfg: record]: string -> string {
   $res
 }
 
-def render_prompt []: nothing -> string {
-  # prevent it from beeing overwritten by prompt-internal commands
-  # use this weird method to prevent the first backup from overwriting the second one
+def render_prompt []: nothing -> nothing {
+  $env.sojourn_mid = (job spawn --tag 'syrup::sojourn: manager' {||
+    let msg = (job recv --tag 1)
+    let pattern: list<string> = $msg.pattern
+    let placeholders: record = $msg.placeholders
+    if ($placeholders | transpose | length) == 0 { return }
+    mut data: record = {}
+
+    loop {
+      let msg = (job recv)
+
+      if $msg.T == 'finished' {
+        $data = ($data | insert $msg.key $msg.data)
+        for line_no in 0..<($pattern | length) {
+          let p = ($pattern | get $line_no)
+          if ($p | str contains $msg.key) {
+            let l = (
+              $placeholders
+              | merge $data
+              | transpose k v
+              | reduce --fold $p {|it,acc| $acc | str replace $'{($it.k)}' $it.v}
+            )
+            let up: int = (($pattern | length) - $line_no) - 2
+            print -n $"\e[s\e[($up)F\e[K($l)\e[u"
+          }
+        }
+        if ($data | transpose | length) == ($placeholders | transpose | length) { return }
+        continue
+      }
+
+      error make { 'msg': $'Unknown message T: ($msg.T)' }
+    }
+  })
+
   $env._SYRUP_PROMPT_TMP = (
     $env
     | select LAST_EXIT_CODE CMD_DURATION_MS
@@ -220,29 +264,58 @@ def render_prompt []: nothing -> string {
       | into duration --unit ms
     }
   )
-
-  $env.SYRUP_PROMPT.prompt
-  | each {|line|
-    $line
-    | par-each --keep-order {|element|
-      match ($element | describe | split row '<' --number 2 | first) {
-        'closure' => { do $element }
-        'string' => { $element }
-        'list' => {
-          let renderer = ($env.SYRUP_PROMPT_MODULES | transpose k v | where $it.k == $element.0).0?.v?
-          if $renderer == null {
-            error make {msg: $"ERROR: UNKNOWN ELEMENT: ($element.0)"}
-          } else {
-            do $renderer ($element.1? | default {})
-            | apply_modifier ($element.2? | default {})
+  let res: record<ph: table<eid: string, pht: string>, p: list<string>> = (
+    $env.SYRUP_PROMPT.prompt
+    | each {|line|
+      $line
+      | par-each --keep-order {|element|
+        match ($element | describe | split row '<' --number 2 | first) {
+          'closure' => { do $element | {'p': $in} }
+          'string' => { $element | {'p': $in} }
+          'list' => {
+            let renderer = ($env.SYRUP_PROMPT_MODULES | transpose k v | where $it.k == $element.0).0?.v?
+            if $renderer == null {
+              error make {msg: $"ERROR: UNKNOWN ELEMENT: ($element.0)"}
+            } else if $element.2?.async? != null {
+              let eid = (random int)
+              let pht = ($element.2.async.placeholder? | default '')
+              job spawn --tag 'syrup::sojourn: worker' {||
+                do $renderer ($element.1? | default {})
+                | apply_modifier ($element.2? | default {} | reject async)
+                | {'T': 'finished', 'key': $'sojourn($eid)', 'data': $in}
+                | job send $env.sojourn_mid
+              }
+              {
+                'p': $'{sojourn($eid)}'
+                'ph': {'eid': $eid, 'pht': $pht}
+              }
+            } else {
+              do $renderer ($element.1? | default {})
+              | apply_modifier ($element.2? | default {})
+              | {'p': $in}
+            }
           }
         }
       }
+      | trip_all_errors
+      | {'ph': ($in | each { get ph? } | compact ), 'p': ($in.p | str join '')}
     }
     | trip_all_errors
-    | str join ''
-  }
-  | trip_all_errors
-  | str join "\n"
+    | {'ph': ($in.ph | flatten), 'p': $in.p}
+  )
+  # | str join "\n"
+  # | $"\e[?25h($in)"  # some programs forget to disable "hide cursor" mode
+  
+  let pattern = $res.p
+  let placeholders = ($res.ph | reduce --fold {} {|it,acc| $acc | insert $'sojourn($it.eid)' $it.pht })
+  $placeholders
+  | transpose k v
+  | reduce --fold ($pattern | str join "\n") {|it,acc| $acc | str replace $'{($it.k)}' $it.v}
   | $"\e[?25h($in)"  # some programs forget to disable "hide cursor" mode
+  | print --no-newline $in
+
+  {
+    'pattern': $pattern
+    'placeholders': $placeholders
+  } | job send $env.sojourn_mid --tag 1
 }

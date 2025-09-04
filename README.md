@@ -1,6 +1,12 @@
 # Syrup (prompt)
 
-A modular prompt for nushell.  
+```
+A modular progressive prompt for nushell.  
+  ───┬─── ─────┬─────            ───┬───
+     │         │                    ╰── https://nushell.sh
+     │         ╰── It continues to fill in details after the initial render
+     ╰── You chain prebuild configurable parts together
+```
 
 **PROJECT STATUS: ALPHA**
 * The parts i care about work

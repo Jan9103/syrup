@@ -33,17 +33,21 @@ it is impossible to get information about the `vi` mode.
 * Raw text (just put a string `"foo"`)
   * mainly intended for separators
   * can also be used for non-changing things like `(hostname)` to save on resources.
-  * example: `"> "`
+  * examples: `"> "`, `$"(hostname | str trim)"`
 * Builtin [module][modules]
-  * format: a list:
+  * formatted as a list:
     1. the module name (example: `pwd`)
-    2. (optional) module configuration (a record)
+    2. (optional) module configuration (a record; fields depend on the module)
     3. (optional) [modifiers][] (a record) (add behaviour, override things, etc)
   * example: `["pwd" {home: true}]`
   * You can register extra ones by adding them to `$env.SYRUP_PROMPT_MODULES`. to avoid name-collisions with future official or 3rd party ones a prefix like `_yourName_moduleName` might make sense.
 * Inline module (closure)
   * you can do whatever you want here - no interference at all.
   * example: `{|| $env.CMD_DURATION_MS}`
+
+## Progressive rendering
+
+You can enable it via the `async` [modifier][modifiers].
 
 ## Further Reading
 
