@@ -181,6 +181,7 @@ export-env {
 
   $env.config.hooks.pre_execution = (
     $env.config.hooks.pre_execution | append {||
+      # prevent further progressive rendering
       for job in (job list | where ($it.tag | str starts-with 'syrup::sojourn:')) {
         job kill $job.id
       }
@@ -194,7 +195,7 @@ export-env {
       render_prompt
       ""
     } catch {|err|
-      $"(ansi red)\n\n=== SYRUP_PROMPT ERROR: ===\n($err)(ansi red)\n=== END OF ERROR ===\n\nPROMPT ERROR > "
+      $"\n\n(ansi red)=== SYRUP_PROMPT ERROR: ===\n($err)\n(ansi red)=== END OF ERROR ===\n\nPROMPT ERROR > "
     }
   }
 }
@@ -226,32 +227,24 @@ def render_prompt []: nothing -> nothing {
     let msg = (job recv --tag 1)
     let pattern: list<string> = $msg.pattern
     let placeholders: record = $msg.placeholders
-    if ($placeholders | transpose | length) == 0 { return }
     mut data: record = {}
 
-    loop {
+    while ($data | transpose | length) != ($placeholders | transpose | length) {
       let msg = (job recv)
-
-      if $msg.T == 'finished' {
-        $data = ($data | insert $msg.key $msg.data)
-        for line_no in 0..<($pattern | length) {
-          let p = ($pattern | get $line_no)
-          if ($p | str contains $msg.key) {
-            let l = (
-              $placeholders
-              | merge $data
-              | transpose k v
-              | reduce --fold $p {|it,acc| $acc | str replace $'{($it.k)}' $it.v}
-            )
-            let up: int = (($pattern | length) - $line_no) - 2
-            print -n $"\e[s\e[($up)F\e[K($l)\e[u"
-          }
+      $data = ($data | insert $msg.key $msg.data)
+      for line_no in 0..<($pattern | length) {
+        let p = ($pattern | get $line_no)
+        if ($p | str contains $msg.key) {
+          let l = (
+            $placeholders
+            | merge $data
+            | transpose k v
+            | reduce --fold $p {|it,acc| $acc | str replace $'{($it.k)}' $it.v}
+          )
+          let up: int = (($pattern | length) - $line_no) - 2
+          print -n $"\e[s\e[($up)F\e[K($l)\e[u"
         }
-        if ($data | transpose | length) == ($placeholders | transpose | length) { return }
-        continue
       }
-
-      error make { 'msg': $'Unknown message T: ($msg.T)' }
     }
   })
 
@@ -281,8 +274,8 @@ def render_prompt []: nothing -> nothing {
               let pht = ($element.2.async.placeholder? | default '')
               job spawn --tag 'syrup::sojourn: worker' {||
                 do $renderer ($element.1? | default {})
-                | apply_modifier ($element.2? | default {} | reject async)
-                | {'T': 'finished', 'key': $'sojourn($eid)', 'data': $in}
+                | apply_modifier ($element.2? | default {} | reject 'async')
+                | {'key': $'sojourn($eid)', 'data': $in}
                 | job send $env.sojourn_mid
               }
               {
@@ -303,8 +296,6 @@ def render_prompt []: nothing -> nothing {
     | trip_all_errors
     | {'ph': ($in.ph | flatten), 'p': $in.p}
   )
-  # | str join "\n"
-  # | $"\e[?25h($in)"  # some programs forget to disable "hide cursor" mode
   
   let pattern = $res.p
   let placeholders = ($res.ph | reduce --fold {} {|it,acc| $acc | insert $'sojourn($it.eid)' $it.pht })

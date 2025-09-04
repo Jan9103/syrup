@@ -51,7 +51,7 @@ export-env {
     if ($repo_info | is-empty) {  # not inside a git dir
       return ''
     }
-    let g: path = $repo_info.0  # "g" in original
+    let git_dir: path = $repo_info.0
     let is_inside_gitdir: bool = ($repo_info.1 | into bool)
     let is_bare_repo: bool = ($repo_info.2 | into bool)
     let is_inside_worktree: bool = ($repo_info.3 | into bool)
@@ -72,45 +72,45 @@ export-env {
       ) { "|SPARSE" } else { "" }
     )
 
-    mut r: string = ""
-    mut b: string = ""
+    mut current_wip_git_action: string = ""
+    mut git_ref: string = ""
     mut step: string = ""
     mut total: string = ""
 
     mut detached: bool = false
 
-    if ($g | path join 'rebase-merge' | path type) == 'dir' {
-      $b = (open --raw ($g | path join 'rebase-merge' 'head-name') | str trim)
-      $step = (open --raw ($g | path join 'rebase-merge' 'msgnum') | str trim)
-      $total = (open --raw ($g | path join 'rebase-merge' 'end') | str trim)
-      $r = "|REBASE"
+    if ($git_dir | path join 'rebase-merge' | path type) == 'dir' {
+      $git_ref = (open --raw ($git_dir | path join 'rebase-merge' 'head-name') | str trim)
+      $step = (open --raw ($git_dir | path join 'rebase-merge' 'msgnum') | str trim)
+      $total = (open --raw ($git_dir | path join 'rebase-merge' 'end') | str trim)
+      $current_wip_git_action = "|REBASE"
     } else {
-      if ($g | path join 'rebase-apply' | path type) == 'dir' {
-        $step = (open --raw ($g | path join 'rebase-apply' 'next') | str trim)
-        $total = (open --raw ($g | path join 'rebase-apply' 'last') | str trim)
-        if ($g | path join 'rebase-apply' 'rebasing' | path type) == 'file' {
-          $b = (open --raw ($g | path join 'rebase-apply' 'head-name') | str trim)
-          $r = '|REBASE'
-        } else if ($g | path join 'rebase-apply' 'applying' | path type) == 'file' {
-          $r = '|AM'
+      if ($git_dir | path join 'rebase-apply' | path type) == 'dir' {
+        $step = (open --raw ($git_dir | path join 'rebase-apply' 'next') | str trim)
+        $total = (open --raw ($git_dir | path join 'rebase-apply' 'last') | str trim)
+        if ($git_dir | path join 'rebase-apply' 'rebasing' | path type) == 'file' {
+          $git_ref = (open --raw ($git_dir | path join 'rebase-apply' 'head-name') | str trim)
+          $current_wip_git_action = '|REBASE'
+        } else if ($git_dir | path join 'rebase-apply' 'applying' | path type) == 'file' {
+          $current_wip_git_action = '|AM'
         } else {
-          $r = '|AM/REBASE'
+          $current_wip_git_action = '|AM/REBASE'
         }
-      } else if ($g | path join 'MERGE_HEAD' | path type) == 'file' {
-        $r = '|MERGING'
+      } else if ($git_dir | path join 'MERGE_HEAD' | path type) == 'file' {
+        $current_wip_git_action = '|MERGING'
       } else if (try {
         mut todo: string = ''
-        if ($g | path join 'CHERRY_PICK_HEAD' | path type) == 'file' {
-          $r = '|CHERRY-PICKING'
+        if ($git_dir | path join 'CHERRY_PICK_HEAD' | path type) == 'file' {
+          $current_wip_git_action = '|CHERRY-PICKING'
           true
-        } else if ($g | path join 'REVERT_HEAD' | path type) == 'file' {
-          $r = '|REVERTING'
+        } else if ($git_dir | path join 'REVERT_HEAD' | path type) == 'file' {
+          $current_wip_git_action = '|REVERTING'
           true
-        } else if (try { $todo = (open --raw ($g | path join 'sequencer' 'todo') | str trim); true } catch { false }) {
+        } else if (try { $todo = (open --raw ($git_dir | path join 'sequencer' 'todo') | str trim); true } catch { false }) {
           if $todo =~ 'p(ick)? *' {
-            $r = '|CHERRY-PICKING'
+            $current_wip_git_action = '|CHERRY-PICKING'
           } else if $todo =~ 'revert *' {
-            $r = '|REVERTING'
+            $current_wip_git_action = '|REVERTING'
           }
           true
         } else {
@@ -118,20 +118,20 @@ export-env {
         }
       } catch { false }) {
         # noop
-      } else if ($g | path join 'BISECT_LOG' | path type) == 'file' {
-        $r = '|BISECTING'
+      } else if ($git_dir | path join 'BISECT_LOG' | path type) == 'file' {
+        $current_wip_git_action = '|BISECTING'
       }
 
-      if $b != '' {
+      if $git_ref != '' {
         # noop
-      } else if ($g | path join 'HEAD' | path type) == 'symlink' {
-        $b = (^git symbolic-ref HEAD e> (null-device) | str trim)
+      } else if ($git_dir | path join 'HEAD' | path type) == 'symlink' {
+        $git_ref = (^git symbolic-ref HEAD e> (null-device) | str trim)
       } else {
         mut head: string = ''
 
         if $ref_format == 'files' {
           try {
-            $head = (open --raw ($g | path join 'HEAD') | str trim)
+            $head = (open --raw ($git_dir | path join 'HEAD') | str trim)
           } catch { return '' }
 
           if ($head | str starts-with 'ref: ') {
@@ -147,28 +147,28 @@ export-env {
           $detached = true
           if (try {
             match $cfg.describe_style {
-              'contains' => { $b = (^git describe --contains HEAD e> (null-device) | str trim) }
-              'branch' => { $b = (^git describe --contains --all HEAD e> (null-device) | str trim) }
-              'tag' => { $b = (^git describe --tags HEAD e> (null-device) | str trim) }
-              'describe' => { $b = (^git describe HEAD e> (null-device) | str trim) }
-              'default' => { $b = (^git describe --tags --exact-match HEAD e> (null-device) | str trim) }
+              'contains' => { $git_ref = (^git describe --contains HEAD e> (null-device) | str trim) }
+              'branch' => { $git_ref = (^git describe --contains --all HEAD e> (null-device) | str trim) }
+              'tag' => { $git_ref = (^git describe --tags HEAD e> (null-device) | str trim) }
+              'describe' => { $git_ref = (^git describe HEAD e> (null-device) | str trim) }
+              'default' => { $git_ref = (^git describe --tags --exact-match HEAD e> (null-device) | str trim) }
             }
             # for some reason non-0 exit codes only sometimes cause a `try` error
             $env.LAST_EXIT_CODE != '0'
           } catch {
             true
           }) {
-            $b = $'($short_sha)...'
+            $git_ref = $'($short_sha)...'
           }
-          $b = $"\(($b)\)"
+          $git_ref = $"\(($git_ref)\)"
         } else {
-          $b = $head
+          $git_ref = $head
         }
       }
     }  # end of $b == ''
 
     if $step != '' and $total != '' {
-      $r = $'($r) ($step)/($total)'
+      $current_wip_git_action = $'($current_wip_git_action) ($step)/($total)'
     }
 
     let conflict: string = (if (
@@ -178,35 +178,35 @@ export-env {
       '|CONFLICT'
     } else { '' })
 
-    mut w: string = ''
-    mut i: string = ''
-    mut u: string = ''
-    mut h: string = ''
-    mut c: string = ''
-    mut p: string = ''
-    mut s: string = ''
+    mut unstaged_indicator: string = ''
+    mut staged_or_no_commit_indicator: string = ''
+    mut untracked_indicator: string = ''
+    mut sparse_checkout_indicator: string = ''
+    mut bare_indicator: string = ''
+    mut short_ahead_behind: string = ''
+    mut stash_indicator: string = ''
     mut upstream: string = ''
 
     if $is_inside_gitdir {
       if $is_bare_repo {
-        $c = 'BARE:'
+        $bare_indicator = 'BARE:'
       } else {
-        $b = 'GIT_DIR!'
+        $git_ref = 'GIT_DIR!'
       }
     } else if $is_inside_worktree {
       if $cfg.parts.dirty.show {
         if (try { ^git diff --no-ext-diff --quiet; false } catch { true }) {
-          $w = '*'
+          $unstaged_indicator = '*'
         }
         if (try { ^git diff --no-ext-diff --cached --quiet; false } catch { true }) {
-          $i = '+'
+          $staged_or_no_commit_indicator = '+'
         }
-        if $short_sha == '' and $i == '' {
-          $i = '#'
+        if $short_sha == '' and $staged_or_no_commit_indicator == '' {
+          $staged_or_no_commit_indicator = '#'
         }
       }  # end dirty
 
-      $s = (if (
+      $stash_indicator = (if (
         ($cfg.parts.stash.show)
         and (try { ^git rev-parse --verify --quiet refs/stash o+e> (null-device); true } catch { false })
       ) { '$' } else { '' })
@@ -216,14 +216,14 @@ export-env {
         and (try { ^git ls-files --others --exclude-standard --directory --no-empty-directory --error-unmatch -- ':/*' o+e> (null-device); true } catch { false })
       ) {
         # for some reason the original '/usr/share/git/git-prompt.sh' only shows this inside of zsh.. idk why
-        $u = '%'
+        $untracked_indicator = '%'
       }
 
       if (
         ($cfg.parts.sparse.compress)
         and (try { ^git config --bool core.sparseCheckout; true } catch { false })
       ) {
-        $h = '?'
+        $sparse_checkout_indicator = '?'
       }
 
       if $cfg.parts.upstream.show {
@@ -238,10 +238,10 @@ export-env {
           | into int
         } catch { null }) {
           null => { $no_upstream = true; '' }  # no upstream
-          [0, 0] => { if $cfg.parts.upstream.verbose { '|u=' } else { $p = '='; '' } }  # no divergence
-          [0, $ahead] => { if $cfg.parts.upstream.verbose { $'|u+($ahead)' } else { $p = '>'; '' } }  # ahead
-          [$behind, 0] => { if $cfg.parts.upstream.verbose { $'|u-($behind)' } else { $p = '<'; '' } }  # behind
-          [$behind, $ahead] => { if $cfg.parts.upstream.verbose { $'|u+($ahead)-($behind)' } else { $p = '<>'; '' } }  # diverged
+          [0, 0] => { if $cfg.parts.upstream.verbose { '|u=' } else { $short_ahead_behind = '='; '' } }  # no divergence
+          [0, $ahead] => { if $cfg.parts.upstream.verbose { $'|u+($ahead)' } else { $short_ahead_behind = '>'; '' } }  # ahead
+          [$behind, 0] => { if $cfg.parts.upstream.verbose { $'|u-($behind)' } else { $short_ahead_behind = '<'; '' } }  # behind
+          [$behind, $ahead] => { if $cfg.parts.upstream.verbose { $'|u+($ahead)-($behind)' } else { $short_ahead_behind = '<>'; '' } }  # diverged
         } } else { '' })
 
         let name = (if ((not $no_upstream) and ($cfg.parts.upstream.name)) {
@@ -260,34 +260,34 @@ export-env {
     }  # end of $is_inside_worktree
 
 
-    let z = $cfg.state_seperator
+    let state_seperator = $cfg.state_seperator
 
-    if ($b | str starts-with 'refs/heads/') {
-      $b = ($b | str replace -r '^refs/heads/' '')
+    if ($git_ref | str starts-with 'refs/heads/') {
+      $git_ref = ($git_ref | str replace -r '^refs/heads/' '')
     }
 
     if not $cfg.color.disable {
       let branch_color: string = (ansi (if $detached { $cfg.color.bad } else { $cfg.color.ok }))
-      if $c != '' {
-        $c = $"($branch_color)($c)(ansi reset)"
+      if $bare_indicator != '' {
+        $bare_indicator = $"($branch_color)($bare_indicator)(ansi reset)"
       }
-      $b = $"($branch_color)($b)(ansi reset)"
-      if $w != '' {
-        $w = $"(ansi $cfg.color.bad)($w)(ansi reset)"
+      $git_ref = $"($branch_color)($git_ref)(ansi reset)"
+      if $unstaged_indicator != '' {
+        $unstaged_indicator = $"(ansi $cfg.color.bad)($unstaged_indicator)(ansi reset)"
       }
-      if $i != '' {
-        $i = $"(ansi $cfg.color.ok)($i)(ansi reset)"
+      if $staged_or_no_commit_indicator != '' {
+        $staged_or_no_commit_indicator = $"(ansi $cfg.color.ok)($staged_or_no_commit_indicator)(ansi reset)"
       }
-      if $s != '' {
-        $s = $'(ansi $cfg.color.flag)($s)(ansi reset)'
+      if $stash_indicator != '' {
+        $stash_indicator = $'(ansi $cfg.color.flag)($stash_indicator)(ansi reset)'
       }
-      if $u != '' {
-        $u = $'(ansi $cfg.color.bad)($u)(ansi reset)'
+      if $untracked_indicator != '' {
+        $untracked_indicator = $'(ansi $cfg.color.bad)($untracked_indicator)(ansi reset)'
       }
     }
 
-    let f = $'($h)($w)($i)($s)($u)($p)'
-    let gitstring = $"($c)($b)(if $f != '' { $'($z)($f)' } else { '' })($sparse)($r)($upstream)($conflict)"
+    let f = $'($sparse_checkout_indicator)($unstaged_indicator)($staged_or_no_commit_indicator)($stash_indicator)($untracked_indicator)($short_ahead_behind)'
+    let gitstring = $"($bare_indicator)($git_ref)(if $f != '' { $'($state_seperator)($f)' } else { '' })($sparse)($current_wip_git_action)($upstream)($conflict)"
 
     $'($cfg.prefix)($gitstring)($cfg.suffix)(ansi reset)'
   }
