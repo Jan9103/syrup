@@ -34,7 +34,6 @@ export-env {
   $env.PROMPT_COMMAND = {||
     try {
       render_prompt
-      ""
     } catch {|err|
       $"\n\n(ansi red)=== SYRUP_PROMPT ERROR: ===\n($err)\n(ansi red)=== END OF ERROR ===\n\nPROMPT ERROR > "
     }
@@ -46,7 +45,7 @@ def apply_modifier [cfg: record]: string -> string {
   for $c in ($cfg.color? | default {} | transpose k v) {
     # mut does not work with match..
     if $c.k == 'admin' and (is-admin) {
-      $res = '(ansi $c.v)($res | ansi strip)'
+      $res = $'(ansi $c.v)($res | ansi strip)'
     } else if $c.k == "color" {
       $res = $'(ansi $c.v)($res | ansi strip)'
     } else if $c.k == 'exitcode' {
@@ -63,7 +62,10 @@ def apply_modifier [cfg: record]: string -> string {
   $res
 }
 
-def render_prompt []: nothing -> nothing {
+def render_prompt []: nothing -> string {
+  if ($env.SYRUP_PROMPT.prompt | last | any {|i| ($i | describe) =~ 'record|table' and $i.2?.async? != null }) {
+    return "SYRUP: ERROR: async cannot be used in the last line of a prompt\n> "
+  }
   $env.sojourn_mid = (job spawn --tag 'syrup::sojourn: manager' {||
     let msg = (job recv --tag 1)
     let pattern: list<string> = $msg.pattern
@@ -72,6 +74,7 @@ def render_prompt []: nothing -> nothing {
 
     while ($data | transpose | length) != ($placeholders | transpose | length) {
       let msg = (job recv)
+      if 'error' in $msg { print --no-newline $"\e[s\e[1F\e[K($msg.error)\e[u"; return }
       $data = ($data | insert $msg.key $msg.data)
       for line_no in 0..<($pattern | length) {
         let p = ($pattern | get $line_no)
@@ -83,7 +86,7 @@ def render_prompt []: nothing -> nothing {
             | reduce --fold $p {|it,acc| $acc | str replace $'{($it.k)}' $it.v}
           )
           let up: int = (($pattern | length) - $line_no) - 2
-          print -n $"\e[s\e[($up)F\e[K($l)\e[u"
+          print --no-newline $"\e[s\e[($up)F\e[K($l)\e[u"
         }
       }
     }
@@ -114,10 +117,17 @@ def render_prompt []: nothing -> nothing {
               let eid = (random int)
               let pht = ($element.2.async.placeholder? | default '')
               job spawn --tag 'syrup::sojourn: worker' {||
-                do $renderer ($element.1? | default {})
-                | apply_modifier ($element.2? | default {} | reject 'async')
-                | {'key': $'sojourn($eid)', 'data': $in}
-                | job send $env.sojourn_mid
+                try {
+                  do $renderer ($element.1? | default {})
+                  | apply_modifier ($element.2? | default {} | reject 'async')
+                  | {'key': $'sojourn($eid)', 'data': $in}
+                } catch {|err|
+                  let tf = (mktemp)
+                  $"($err.rendered)\n\n($err.json)"
+                  | save --raw --force $tf
+                  {'error': $'ERROR: open --raw ($tf | to json --raw)'}
+                }
+                | try { job send $env.sojourn_mid }
               }
               {
                 'p': $'{sojourn($eid)}'
@@ -140,14 +150,25 @@ def render_prompt []: nothing -> nothing {
   
   let pattern = $res.p
   let placeholders = ($res.ph | reduce --fold {} {|it,acc| $acc | insert $'sojourn($it.eid)' $it.pht })
-  $placeholders
-  | transpose k v
-  | reduce --fold ($pattern | str join "\n") {|it,acc| $acc | str replace $'{($it.k)}' $it.v}
-  | $"\e[?25h($in)"  # some programs forget to disable "hide cursor" mode
-  | print --no-newline $in
+  let result: list<string> = (
+    $pattern
+    | each {|line|
+      $placeholders
+      | transpose k v
+      | reduce --fold $line {|it,acc| $acc | str replace $'{($it.k)}' $it.v}
+    }
+  )
+  $result
+  | drop 1
+  | str join "\n"
+  | print $in
 
   {
     'pattern': $pattern
     'placeholders': $placeholders
   } | job send $env.sojourn_mid --tag 1
+
+  $result
+  | last
+  # | $"\e[?25h($in)"  # some programs forget to disable "hide cursor" mode
 }

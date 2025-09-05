@@ -13,6 +13,9 @@ Examples:
 * `{async: {}}` (placeholder is a empty string)
 * `{async: {placeholder: "<loading>"}}`
 
+Restrictions:
+* This can currently not be used on the last line of a prompt (the one your cursor is on) due to `reedline` restrictions
+
 ## color.admin
 
 Change the color if you are a admin.  
