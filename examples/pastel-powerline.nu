@@ -12,7 +12,6 @@ const cyan   = '#06969a'
 export-env {
   $env.SYRUP_PROMPT = {
     'prompt': [
-      []  # empty line
       [
         # username
         $"(ansi --escape {fg: $purple})(ansi --escape {bg: $purple fg: $white})($env.USER) (ansi --escape {bg: $salmon fg: $purple})(ansi --escape {bg: $salmon, fg: $white}) "
@@ -27,12 +26,14 @@ export-env {
           'seperator': '\'
         }]
         # git
-        $' (ansi --escape {fg: $salmon bg: $yellow})'
-        ['gitprompt' {
-          'color': {'disable': true}
-          'prefix': '  '
-          'suffix': ' '
-        } {custom: [{ $'(ansi --escape {bg: $yellow fg: $white})($in | ansi strip)' }]}]
+        $' (ansi --escape {fg: $salmon bg: $yellow})(ansi --escape {bg: $yellow fg: $white})'
+        ['git_branch' {
+          'format': {
+            'branch':   '  {branch} '
+            'detached': '  {short_sha} '
+            'not_git':  ''
+          }
+        }]
         # time
         $'(ansi --escape {fg: $yellow bg: $cyan})(ansi --escape {bg: $cyan fg: $white})'
         ['datetime' {'format': ' ♥ %H:%M '}]
