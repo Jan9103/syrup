@@ -4,13 +4,12 @@ Note: Many default settings assume you are using a [nerd font](https://www.nerdf
 
 ## Prompt structure
 
-`$env.SYRUP_PROMPT.prompt` contains the structure of your prompt.
+`$env.SYRUP_PROMPT.prompt` contains the structure of your prompt:
+* The first level is a list of lines.
+* The second level is a list of elements.
+* The third level are the actual elements.
 
-The first level is a list of lines.
-
-The second level is a list of elements.
-
-The third level are the actual elements.
+`$env.SYRUP_PROMPT.right_prompt` can only have one line and thus misses the first level.
 
 ```nu
 $env.SYRUP_PROMPT.prompt = [
@@ -18,6 +17,9 @@ $env.SYRUP_PROMPT.prompt = [
   [
     'Hi'  # a element
   ]
+]
+$env.SYRUP_PROMPT.right_prompt = [
+  "Hi"  # element
 ]
 $env.PROMPT_INDICATOR = '> '
 

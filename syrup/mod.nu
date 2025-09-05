@@ -30,10 +30,17 @@ export-env {
   )
 
   $env.SYRUP_PROMPT = ($env.SYRUP_PROMPT? | default $DEFAULT_CFG)
-  $env.PROMPT_COMMAND_RIGHT = {|| "" }
+  $env.PROMPT_COMMAND_RIGHT = {||
+    try {
+      [($env.SYRUP_PROMPT.right_prompt | default [])] | render_prompt --right
+    } catch {|err|
+      print $"\e[s\e[H(ansi red)=== SYRUP_PROMPT ERROR: ===\n($err)\n(ansi red)=== END OF ERROR ===\e[u"
+      "ERR"
+    }
+  }
   $env.PROMPT_COMMAND = {||
     try {
-      render_prompt
+      $env.SYRUP_PROMPT.prompt | render_prompt
     } catch {|err|
       $"\n\n(ansi red)=== SYRUP_PROMPT ERROR: ===\n($err)\n(ansi red)=== END OF ERROR ===\n\nPROMPT ERROR > "
     }
@@ -62,35 +69,38 @@ def apply_modifier [cfg: record]: string -> string {
   $res
 }
 
-def render_prompt []: nothing -> string {
-  if ($env.SYRUP_PROMPT.prompt | last | any {|i| ($i | describe) =~ 'record|table' and $i.2?.async? != null }) {
+def render_prompt [--right]: list<list<any>> -> string {
+  let prompt_cfg = $in
+  if ($prompt_cfg | last | any {|i| ($i | describe) =~ 'record|table' and $i.2?.async? != null }) {
     return "SYRUP: ERROR: async cannot be used in the last line of a prompt\n> "
   }
-  $env.sojourn_mid = (job spawn --tag 'syrup::sojourn: manager' {||
-    let msg = (job recv --tag 1)
-    let pattern: list<string> = $msg.pattern
-    let placeholders: record = $msg.placeholders
-    mut data: record = {}
+  $env.sojourn_mid = if ($prompt_cfg | length) > 1 {
+    job spawn --tag 'syrup::sojourn: manager' {||
+      let msg = (job recv --tag 1)
+      let pattern: list<string> = $msg.pattern
+      let placeholders: record = $msg.placeholders
+      mut data: record = {}
 
-    while ($data | transpose | length) != ($placeholders | transpose | length) {
-      let msg = (job recv)
-      if 'error' in $msg { print --no-newline $"\e[s\e[1F\e[K($msg.error)\e[u"; return }
-      $data = ($data | insert $msg.key $msg.data)
-      for line_no in 0..<($pattern | length) {
-        let p = ($pattern | get $line_no)
-        if ($p | str contains $msg.key) {
-          let l = (
-            $placeholders
-            | merge $data
-            | transpose k v
-            | reduce --fold $p {|it,acc| $acc | str replace $'{($it.k)}' $it.v}
-          )
-          let up: int = (($pattern | length) - $line_no) - 2
-          print --no-newline $"\e[s\e[($up)F\e[K($l)\e[u"
+      while ($data | transpose | length) != ($placeholders | transpose | length) {
+        let msg = (job recv)
+        if 'error' in $msg { print --no-newline $"\e[s\e[1F\e[K($msg.error)\e[u"; return }
+        $data = ($data | insert $msg.key $msg.data)
+        for line_no in 0..<($pattern | length) {
+          let p = ($pattern | get $line_no)
+          if ($p | str contains $msg.key) {
+            let l = (
+              $placeholders
+              | merge $data
+              | transpose k v
+              | reduce --fold $p {|it,acc| $acc | str replace $'{($it.k)}' $it.v}
+            )
+            let up: int = (($pattern | length) - $line_no) - 2
+            print --no-newline $"\e[s\e[($up)F\e[K($l)\e[u"
+          }
         }
       }
     }
-  })
+  } else { -1 }
 
   $env._SYRUP_PROMPT_TMP = (
     $env
@@ -102,7 +112,7 @@ def render_prompt []: nothing -> string {
     }
   )
   let res: record<ph: table<eid: string, pht: string>, p: list<string>> = (
-    $env.SYRUP_PROMPT.prompt
+    $prompt_cfg
     | each {|line|
       $line
       | par-each --keep-order {|element|
@@ -158,15 +168,20 @@ def render_prompt []: nothing -> string {
       | reduce --fold $line {|it,acc| $acc | str replace $'{($it.k)}' $it.v}
     }
   )
-  $result
-  | drop 1
-  | str join "\n"
-  | print $in
 
-  {
-    'pattern': $pattern
-    'placeholders': $placeholders
-  } | job send $env.sojourn_mid --tag 1
+  if not $right {
+    $result
+    | drop 1
+    | str join "\n"
+    | print $in
+  }
+
+  if $env.sojourn_mid != -1 {
+    {
+      'pattern': $pattern
+      'placeholders': $placeholders
+    } | try { job send $env.sojourn_mid --tag 1 }
+  }
 
   $result
   | last
