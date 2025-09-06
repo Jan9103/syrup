@@ -32,7 +32,7 @@ export-env {
   $env.SYRUP_PROMPT = ($env.SYRUP_PROMPT? | default $DEFAULT_CFG)
   $env.PROMPT_COMMAND_RIGHT = {||
     try {
-      [($env.SYRUP_PROMPT.right_prompt | default [])] | render_prompt --right
+      [($env.SYRUP_PROMPT?.right_prompt? | default [])] | render_prompt --right
     } catch {|err|
       print $"\e[s\e[H(ansi red)=== SYRUP_PROMPT ERROR: ===\n($err)\n(ansi red)=== END OF ERROR ===\e[u"
       "ERR"
