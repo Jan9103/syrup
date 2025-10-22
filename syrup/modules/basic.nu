@@ -59,8 +59,17 @@ const CMD_DURATION_DEFAULT: record = {
   'format': $' (ansi red){duration}(ansi reset)'
 }
 
+const NU_VERSION_DEFAULT: record = {
+  'format': ' v{major}.{minor}.{patch}'
+}
+
 export-env {
   $env.SYRUP_PROMPT_MODULES = {
+    "nu_version": {|cfg|
+      let cfg = ($NU_VERSION_DEFAULT | merge deep $cfg)
+      version | format pattern $cfg.format
+    }
+
     "overlay": {|cfg|
       let cfg = ($OVERLAY_DEFAULT | merge deep $cfg)
       overlay list

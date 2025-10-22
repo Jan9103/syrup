@@ -109,3 +109,11 @@ const DEFAULT = {
   }
 }
 ```
+
+## nu_version
+
+```nushell
+const DEFAULT = {
+  'format': ' v{major}.{minor}.{patch}'  # all fields from `version` are available
+}
+```
