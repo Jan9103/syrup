@@ -16,8 +16,11 @@ A modular progressive prompt for nushell.
 * The only reason i published it (already) is that i don't think I'd have the motivation to finish it otherwise
 
 ![screenshot](https://jan9103.github.io/syrup/media/00.avif)
+![screenshot](https://jan9103.github.io/syrup/media/bracketed.avif)
+![screenshot](https://jan9103.github.io/syrup/media/pastel_powerline.avif)
+![screenshot](https://jan9103.github.io/syrup/media/line1.avif)
 
-(the screenshot is from my setup and just one example of how it can look)
+(the screenshots are just examples)
 
 ## Usage
 
