@@ -3,7 +3,7 @@
 
 export-env {
   let hostname = (sys host).hostname
-  let seed = ((sys host).hostname | hash md5 | str replace --all --regex '[^1234567]+' '')
+  let seed = ($hostname | hash md5 | str replace --all --regex '[^1234567]+' '')
   let hc1 = ($seed | str substring 0..0)
   let hc2 = ($seed | str substring 1..1)
 
