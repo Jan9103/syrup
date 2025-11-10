@@ -1,5 +1,4 @@
 use ../util.nu [find_in_pardirs trip_all_errors]
-use std/util [null-device]
 
 const GIT_BRANCH_DEFAULT: record = {
   'format': {
@@ -155,7 +154,7 @@ export-env {
     }
 
     'git_branch': {|cfg|
-      let cfg = ($DATETIME_DEFAULT | merge deep $cfg)
+      let cfg = ($GIT_BRANCH_DEFAULT | merge deep $cfg)
 
       let branch: string = (try { ^git branch --show-current | str trim } catch {
         return ($cfg.format.not_git)

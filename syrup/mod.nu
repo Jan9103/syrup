@@ -1,5 +1,4 @@
-use ./util.nu [find_in_pardirs trip_all_errors]
-use std/util [null-device]
+use ./util.nu [find_in_pardirs, trip_all_errors]
 
 const DEFAULT_CFG = {
   "prompt": [
@@ -71,7 +70,11 @@ def apply_modifier [cfg: record]: string -> string {
 
 def render_prompt [--right]: list<list<any>> -> string {
   let prompt_cfg = $in
-  if ($prompt_cfg | last | any {|i| ($i | describe) =~ 'record|table' and $i.2?.async? != null }) {
+
+  let supports_last_line_async = false;
+  # let supports_last_line_async = (version).is_heretic_nu? == true;
+
+  if not $supports_last_line_async and ($prompt_cfg | last | any {|i| ($i | describe) =~ 'record|table' and $i.2?.async? != null }) {
     return "SYRUP: ERROR: async cannot be used in the last line of a prompt\n> "
   }
   $env.sojourn_mid = if ($prompt_cfg | length) > 1 {
@@ -169,7 +172,7 @@ def render_prompt [--right]: list<list<any>> -> string {
     }
   )
 
-  if not $right {
+  if not $right and not $supports_last_line_async {
     $result
     | drop 1
     | str join "\n"
@@ -183,7 +186,10 @@ def render_prompt [--right]: list<list<any>> -> string {
     } | try { job send $env.sojourn_mid --tag 1 }
   }
 
-  $result
-  | last
+  if $supports_last_line_async {
+    $result | str join "\n"
+  } else {
+    $result | last
+  }
   # | $"\e[?25h($in)"  # some programs forget to disable "hide cursor" mode
 }

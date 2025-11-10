@@ -1,6 +1,10 @@
-# this is a extract of https://github.com/Jan9103/nutils (MIT License)
-# it is hardcoded since package managers are not yet widespread and
+# these are extracts from other projects.
+# they are hardcoded since package managers are not yet widespread and
 # installation becomes unnecesarely complex otherwise.
+
+#######################################################################
+
+# this is a extract of https://github.com/Jan9103/nutils (MIT License)
 
 export def list_pardirs []: string -> list<string> {
   let parts = ($in | path split)
@@ -31,4 +35,14 @@ export def trip_all_errors []: any -> any {
     }
   }
   $input
+}
+
+#######################################################################
+
+# this is a extract of nu-std https://github.com/nushell/nushell (MIT LICENSE)
+
+export const null_device = if $nu.os-info.name == "windows" {
+  '\\.\NUL'
+} else {
+  '/dev/null'
 }

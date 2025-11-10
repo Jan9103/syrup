@@ -1,4 +1,4 @@
-use std/util [null-device]
+use ../util.nu [null_device]
 
 const MPC_DEFAULT: record = {
   'format': {
@@ -31,7 +31,7 @@ def parse_mpc_duration []: string -> duration {
 export-env {
   $env.SYRUP_PROMPT_MODULES.mpc = {|cfg|
     let cfg: record = ($MPC_DEFAULT | merge deep $cfg)
-    let mrl = (try { ^mpc e> (null-device) | lines } catch { return '' })
+    let mrl = (try { ^mpc e> $null_device | lines } catch { return '' })
     let l1 = ($mrl | parse -r '\[(?P<status>paused|playing)\] +#\d+/\d+ +(?P<now>[0-9:]+)/(?P<total>[0-9:]+)').0?
     let l2 = ($mrl | parse -r 'volume: (?P<volume>\d+)% +repeat: (?P<repeat>on|off) +random: (?P<random>on|off) +single: (?P<single>on|off) +consume: (?P<consume>on|off)').0?
     if $l1 == null or $l2 == null { return '' }

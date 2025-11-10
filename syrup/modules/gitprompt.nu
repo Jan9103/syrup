@@ -1,4 +1,4 @@
-use std/util [null-device]
+use ../util.nu [null_device]
 
 const DEFAULT_CONFIG: record = {
   'color': {
@@ -45,7 +45,7 @@ export-env {
 
     let repo_info: list<string> = (
       ^git rev-parse --git-dir --is-inside-git-dir --is-bare-repository --is-inside-work-tree --show-ref-format --short HEAD
-      e> (null-device)  # e>| for some reason swallows stdout, so a workaround it is
+      e> ($null_device)  # e>| for some reason swallows stdout, so a workaround it is
       | lines
     )
     if ($repo_info | is-empty) {  # not inside a git dir
@@ -125,7 +125,7 @@ export-env {
       if $git_ref != '' {
         # noop
       } else if ($git_dir | path join 'HEAD' | path type) == 'symlink' {
-        $git_ref = (^git symbolic-ref HEAD e> (null-device) | str trim)
+        $git_ref = (^git symbolic-ref HEAD e> ($null_device) | str trim)
       } else {
         mut head: string = ''
 
@@ -140,18 +140,18 @@ export-env {
             $head = ''
           }
         } else {
-          $head = (^git symbolic-ref HEAD e> (null-device) | str trim)
+          $head = (^git symbolic-ref HEAD e> ($null_device) | str trim)
         }
 
         if $head == '' {
           $detached = true
           if (try {
             match $cfg.describe_style {
-              'contains' => { $git_ref = (^git describe --contains HEAD e> (null-device) | str trim) }
-              'branch' => { $git_ref = (^git describe --contains --all HEAD e> (null-device) | str trim) }
-              'tag' => { $git_ref = (^git describe --tags HEAD e> (null-device) | str trim) }
-              'describe' => { $git_ref = (^git describe HEAD e> (null-device) | str trim) }
-              'default' => { $git_ref = (^git describe --tags --exact-match HEAD e> (null-device) | str trim) }
+              'contains' => { $git_ref = (^git describe --contains HEAD e> ($null_device) | str trim) }
+              'branch' => { $git_ref = (^git describe --contains --all HEAD e> ($null_device) | str trim) }
+              'tag' => { $git_ref = (^git describe --tags HEAD e> ($null_device) | str trim) }
+              'describe' => { $git_ref = (^git describe HEAD e> ($null_device) | str trim) }
+              'default' => { $git_ref = (^git describe --tags --exact-match HEAD e> ($null_device) | str trim) }
             }
             # for some reason non-0 exit codes only sometimes cause a `try` error
             $env.LAST_EXIT_CODE != '0'
@@ -173,7 +173,7 @@ export-env {
 
     let conflict: string = (if (
       ($cfg.parts.conflict.show)
-      and ((try { ^git ls-files --unmerged e> (null-device) } catch { '' }) != '')
+      and ((try { ^git ls-files --unmerged e> ($null_device) } catch { '' }) != '')
     ) {
       '|CONFLICT'
     } else { '' })
@@ -208,12 +208,12 @@ export-env {
 
       $stash_indicator = (if (
         ($cfg.parts.stash.show)
-        and (try { ^git rev-parse --verify --quiet refs/stash o+e> (null-device); true } catch { false })
+        and (try { ^git rev-parse --verify --quiet refs/stash o+e> ($null_device); true } catch { false })
       ) { '$' } else { '' })
 
       if (
         ($cfg.parts.untracked.show)
-        and (try { ^git ls-files --others --exclude-standard --directory --no-empty-directory --error-unmatch -- ':/*' o+e> (null-device); true } catch { false })
+        and (try { ^git ls-files --others --exclude-standard --directory --no-empty-directory --error-unmatch -- ':/*' o+e> ($null_device); true } catch { false })
       ) {
         # for some reason the original '/usr/share/git/git-prompt.sh' only shows this inside of zsh.. idk why
         $untracked_indicator = '%'
@@ -233,7 +233,7 @@ export-env {
         mut no_upstream: bool = false
 
         let ab: string = (if $cfg.parts.upstream.ab { match (try {
-          ^git rev-list --count --left-right "@{upstream}...HEAD" e> (null-device)
+          ^git rev-list --count --left-right "@{upstream}...HEAD" e> ($null_device)
           | split words
           | into int
         } catch { null }) {
@@ -245,7 +245,7 @@ export-env {
         } } else { '' })
 
         let name = (if ((not $no_upstream) and ($cfg.parts.upstream.name)) {
-          ^git rev-parse --abbrev-ref '@{upstream}' e> (null-device)
+          ^git rev-parse --abbrev-ref '@{upstream}' e> ($null_device)
           | str trim
           | if $in == '' { $no_upstream = true; '' } else { $'upstream ($in)' }
         } else { '' })
