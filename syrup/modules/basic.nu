@@ -156,9 +156,11 @@ export-env {
     'git_branch': {|cfg|
       let cfg = ($GIT_BRANCH_DEFAULT | merge deep $cfg)
 
-      let branch: string = (try { ^git branch --show-current | str trim } catch {
+      if (pwd | find_in_pardirs '.git') == null {
         return ($cfg.format.not_git)
-      })
+      }
+
+      let branch: string = (^git branch --show-current | str trim)
       if $branch == '' {
         # detached HEAD (rebase/..)
         { 'short_sha': (^git rev-parse --short HEAD | str trim)
