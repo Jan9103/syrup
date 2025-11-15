@@ -22,9 +22,34 @@ A modular progressive prompt for nushell.
 
 (the screenshots are just examples)
 
-## Usage
+## Quickstart
 
-* [setup](./docs/setup.md)
-* [config docs](./docs/config.md)
+(copy and paste this into nu)
+
+```nushell
+cd ($nu.config-path | path dirname)
+# download syrup
+^git clone --depth=1 "https://github.com/Jan9103/syrup"
+# add to nu config
+"\n
+# load syrup-prompt
+source-env ./syrup/syrup/mod.nu
+# load prompt modules
+#source-env ./syrup/syrup/modules/gitprompt.nu
+
+# set syrup-prompt config
+#$env.SYRUP_PROMPT.prompt = [...]
+#source-env ./syrup/examples/bracketed.nu
+" | save --raw --append ./config.nu
+
+cd  # go back to home-directory
+^$nu.current-exe  # open a new nu instance to load the new config
+```
+
+**NOTE:** syrup's default configuration makes heavy use of [nerdfont](https://www.nerdfonts.com/).
+
+Next steps:
+* try out some [example configs](./examples)
+* read the [docs](./docs/config.md)
 
 [powerline]: https://github.com/b-ryan/powerline-shell
