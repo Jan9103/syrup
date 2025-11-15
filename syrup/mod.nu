@@ -172,7 +172,7 @@ def render_prompt [--right]: list<list<any>> -> string {
     }
   )
 
-  if not $right and not $supports_last_line_async {
+  if not $right and not $supports_last_line_async and ($result | length) > 1 {
     $result
     | drop 1
     | str join "\n"
