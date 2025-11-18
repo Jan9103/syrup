@@ -8,4 +8,5 @@ Module Sections:
 * [basic](./basic.md) (exit status, current directory, etc)
 * [gitprompt](./gitprompt.md) (a re-implementation of [gitprompt](https://github.com/git/git/blob/master/contrib/completion/git-prompt.sh) for those who like to have the kitchen sink included)
 * [mpc](./mpc.md) (status from the MPD "music player client" CLI tool)
+* [python](./python.md)
 * [rust](./rust.md)
