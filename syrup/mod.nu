@@ -27,6 +27,15 @@ export-env {
       }
     }
   )
+  $env.config.hooks.pre_prompt = (
+    $env.config.hooks.pre_prompt | append {||
+      # just calc once (for both left and right side)
+      $env.SYRUP_PROMPT_GIT_DIR = (
+        $env.PWD | find_in_pardirs '.git'
+        | if $in == null { null } else { $in | path dirname }
+      )
+    }
+  )
 
   $env.SYRUP_PROMPT = ($env.SYRUP_PROMPT? | default $DEFAULT_CFG)
   $env.PROMPT_COMMAND_RIGHT = {||

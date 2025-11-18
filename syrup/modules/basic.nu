@@ -95,10 +95,7 @@ export-env {
       }
 
       if $cfg.git {
-        let gbdir = (
-          $env.PWD | find_in_pardirs '.git'
-          | if $in == null { null } else { $in | path dirname }
-        )
+        let gbdir = $env.SYRUP_PROMPT_GIT_DIR
         if $gbdir != null and ($gbdir | str length) > ($bdir | str length) {
           $type = 'git'
           $bdir = $gbdir
@@ -156,7 +153,7 @@ export-env {
     'git_branch': {|cfg|
       let cfg = ($GIT_BRANCH_DEFAULT | merge deep $cfg)
 
-      if (pwd | find_in_pardirs '.git') == null {
+      if $env.SYRUP_PROMPT_GIT_DIR == null {
         return ($cfg.format.not_git)
       }
 
