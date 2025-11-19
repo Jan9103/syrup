@@ -37,6 +37,54 @@ const DEFAULT_CONFIG: record = {
 
   'prefix': $" (ansi grey)\("
   'suffix': $"(ansi grey)\)"
+
+  'format': {
+    'sparse': {
+      'yes': '|SPARE'
+      'no': ''
+    }
+    'action': {
+      'with_steps': '{action} ({step}/{total})'
+
+      'rebase': '|REBASE'
+      'applying': '|AM'
+      'rebase-applying': '|AM/REBASE'
+      'merging': '|MERGING'
+      'cherry-picking': '|CHERRY-PICKING'
+      'reverting': '|REVERTING'
+      'bisecting': '|BISECTING'
+    }
+    'bare': 'BARE:'
+    'conflict': {
+      'yes': '|CONFLICT'
+      'no': ''
+    }
+    'ref': {
+      'short_sha': '{short_sha}...'
+      'detached': '({git_ref})'
+      'git_dir': 'GIT_DIR!'
+    }
+    'dirt_markers': {
+      'staged': '+'
+      'unstaged': '*'
+      'no_commits': '#'
+    }
+    'untracked_marker': '%'
+    'sparse_marker': '?'
+    'verbose_upstream': {
+      'equal': '|u='
+      'ahead': '|u+{ahead}'
+      'behind': '|u-{behind}'
+      'diverged': '|u+{ahead}-{behind}'
+    }
+    'short_upstream': {
+      'equal': ''
+      'ahead': '>'
+      'behind': '<'
+      'diverged': '<>'
+    }
+    'upstream_name': 'upstream {name}'
+  }
 }
 
 export-env {
@@ -69,7 +117,7 @@ export-env {
         ($cfg.parts.sparse.show)
         and (not $cfg.parts.sparse.compress)
         and ((try { ^git config --bool core.sparseCheckout; true } catch { false }) == true)
-      ) { "|SPARSE" } else { "" }
+      ) { $cfg.format.sparse.yes } else { $cfg.format.sparse.no }
     )
 
     mut current_wip_git_action: string = ""
@@ -83,34 +131,34 @@ export-env {
       $git_ref = (open --raw ($git_dir | path join 'rebase-merge' 'head-name') | str trim)
       $step = (open --raw ($git_dir | path join 'rebase-merge' 'msgnum') | str trim)
       $total = (open --raw ($git_dir | path join 'rebase-merge' 'end') | str trim)
-      $current_wip_git_action = "|REBASE"
+      $current_wip_git_action = $cfg.format.action.rebase
     } else {
       if ($git_dir | path join 'rebase-apply' | path type) == 'dir' {
         $step = (open --raw ($git_dir | path join 'rebase-apply' 'next') | str trim)
         $total = (open --raw ($git_dir | path join 'rebase-apply' 'last') | str trim)
         if ($git_dir | path join 'rebase-apply' 'rebasing' | path type) == 'file' {
           $git_ref = (open --raw ($git_dir | path join 'rebase-apply' 'head-name') | str trim)
-          $current_wip_git_action = '|REBASE'
+          $current_wip_git_action = $cfg.format.action.rebase
         } else if ($git_dir | path join 'rebase-apply' 'applying' | path type) == 'file' {
-          $current_wip_git_action = '|AM'
+          $current_wip_git_action = $cfg.format.action.applying
         } else {
-          $current_wip_git_action = '|AM/REBASE'
+          $current_wip_git_action = $cfg.format.action."rebase-applying"
         }
       } else if ($git_dir | path join 'MERGE_HEAD' | path type) == 'file' {
-        $current_wip_git_action = '|MERGING'
+        $current_wip_git_action = $cfg.format.action.merging
       } else if (try {
         mut todo: string = ''
         if ($git_dir | path join 'CHERRY_PICK_HEAD' | path type) == 'file' {
-          $current_wip_git_action = '|CHERRY-PICKING'
+          $current_wip_git_action = $cfg.format.action.'cherry-picking'
           true
         } else if ($git_dir | path join 'REVERT_HEAD' | path type) == 'file' {
-          $current_wip_git_action = '|REVERTING'
+          $current_wip_git_action = $cfg.format.action.reverting
           true
         } else if (try { $todo = (open --raw ($git_dir | path join 'sequencer' 'todo') | str trim); true } catch { false }) {
           if $todo =~ 'p(ick)? *' {
-            $current_wip_git_action = '|CHERRY-PICKING'
+            $current_wip_git_action = $cfg.format.action.'cherry-picking'
           } else if $todo =~ 'revert *' {
-            $current_wip_git_action = '|REVERTING'
+            $current_wip_git_action = $cfg.format.action.reverting
           }
           true
         } else {
@@ -119,7 +167,7 @@ export-env {
       } catch { false }) {
         # noop
       } else if ($git_dir | path join 'BISECT_LOG' | path type) == 'file' {
-        $current_wip_git_action = '|BISECTING'
+        $current_wip_git_action = $cfg.format.action.bisecting
       }
 
       if $git_ref != '' {
@@ -158,9 +206,9 @@ export-env {
           } catch {
             true
           }) {
-            $git_ref = $'($short_sha)...'
+            $git_ref = ({'short_sha': $short_sha} | format pattern $cfg.format.ref.short_sha)
           }
-          $git_ref = $"\(($git_ref)\)"
+          $git_ref = ({'git_ref': $git_ref} | format pattern $cfg.format.ref.detached)
         } else {
           $git_ref = $head
         }
@@ -168,15 +216,13 @@ export-env {
     }  # end of $b == ''
 
     if $step != '' and $total != '' {
-      $current_wip_git_action = $'($current_wip_git_action) ($step)/($total)'
+      $current_wip_git_action = ({'action': $current_wip_git_action, 'step': $step, 'total': $total} | format pattern $cfg.format.action.with_steps)
     }
 
     let conflict: string = (if (
       ($cfg.parts.conflict.show)
       and ((try { ^git ls-files --unmerged e> ($null_device) } catch { '' }) != '')
-    ) {
-      '|CONFLICT'
-    } else { '' })
+    ) { $cfg.format.conflict.yes } else { $cfg.format.conflict.no })
 
     mut unstaged_indicator: string = ''
     mut staged_or_no_commit_indicator: string = ''
@@ -189,20 +235,20 @@ export-env {
 
     if $is_inside_gitdir {
       if $is_bare_repo {
-        $bare_indicator = 'BARE:'
+        $bare_indicator = $cfg.format.bare
       } else {
-        $git_ref = 'GIT_DIR!'
+        $git_ref = $cfg.format.ref.git_dir
       }
     } else if $is_inside_worktree {
       if $cfg.parts.dirty.show {
         if (try { ^git diff --no-ext-diff --quiet; false } catch { true }) {
-          $unstaged_indicator = '*'
+          $unstaged_indicator = $cfg.format.dirt_marker.unstaged
         }
         if (try { ^git diff --no-ext-diff --cached --quiet; false } catch { true }) {
-          $staged_or_no_commit_indicator = '+'
+          $staged_or_no_commit_indicator = $cfg.format.dirt_markers.staged
         }
         if $short_sha == '' and $staged_or_no_commit_indicator == '' {
-          $staged_or_no_commit_indicator = '#'
+          $staged_or_no_commit_indicator = $cfg.format.dirt_markers.no_commits
         }
       }  # end dirty
 
@@ -216,14 +262,14 @@ export-env {
         and (try { ^git ls-files --others --exclude-standard --directory --no-empty-directory --error-unmatch -- ':/*' o+e> ($null_device); true } catch { false })
       ) {
         # for some reason the original '/usr/share/git/git-prompt.sh' only shows this inside of zsh.. idk why
-        $untracked_indicator = '%'
+        $untracked_indicator = $cfg.format.untracked_marker
       }
 
       if (
         ($cfg.parts.sparse.compress)
         and (try { ^git config --bool core.sparseCheckout; true } catch { false })
       ) {
-        $sparse_checkout_indicator = '?'
+        $sparse_checkout_indicator = $cfg.format.sparse_marker
       }
 
       if $cfg.parts.upstream.show {
@@ -238,16 +284,16 @@ export-env {
           | into int
         } catch { null }) {
           null => { $no_upstream = true; '' }  # no upstream
-          [0, 0] => { if $cfg.parts.upstream.verbose { '|u=' } else { $short_ahead_behind = '='; '' } }  # no divergence
-          [0, $ahead] => { if $cfg.parts.upstream.verbose { $'|u+($ahead)' } else { $short_ahead_behind = '>'; '' } }  # ahead
-          [$behind, 0] => { if $cfg.parts.upstream.verbose { $'|u-($behind)' } else { $short_ahead_behind = '<'; '' } }  # behind
-          [$behind, $ahead] => { if $cfg.parts.upstream.verbose { $'|u+($ahead)-($behind)' } else { $short_ahead_behind = '<>'; '' } }  # diverged
+          [0, 0] =>            { $short_ahead_behind = $cfg.format.short_upstream.equal;    $cfg.format.verbose_upstream.equal }
+          [0, $ahead] =>       { $short_ahead_behind = $cfg.format.short_upstream.ahead;    {'ahead':  $ahead}  | format pattern $cfg.format.verbose_upstream.ahead }
+          [$behind, 0] =>      { $short_ahead_behind = $cfg.format.short_upstream.behind;   {'behind': $behind} | format pattern $cfg.format.verbose_upstream.behind }
+          [$behind, $ahead] => { $short_ahead_behind = $cfg.format.short_upstream.diverged; {'ahead': $ahead, 'behind': $behind} | format pattern $cfg.format.verbose_upstream.diverged }
         } } else { '' })
 
         let name = (if ((not $no_upstream) and ($cfg.parts.upstream.name)) {
           ^git rev-parse --abbrev-ref '@{upstream}' e> ($null_device)
           | str trim
-          | if $in == '' { $no_upstream = true; '' } else { $'upstream ($in)' }
+          | if $in == '' { $no_upstream = true; '' } else { {'name': $in} | format pattern $cfg.format.upstream_name }
         } else { '' })
 
         $upstream = (match [$ab, $name] {
