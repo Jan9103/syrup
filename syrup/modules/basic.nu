@@ -62,6 +62,9 @@ const NU_VERSION_DEFAULT: record = {
   'format': ' v{major}.{minor}.{patch}'
 }
 
+# for some reason `default` is not const-time..
+const home_path: path = (if $nu.home-path? == null { $nu.home-dir? } else { $nu.home-path })
+
 export-env {
   $env.SYRUP_PROMPT_MODULES = {
     "nu_version": {|cfg|
@@ -88,9 +91,9 @@ export-env {
       mut type: string = 'default'
 
       if $cfg.home {
-        if ($env.PWD | str starts-with $nu.home-path) {
+        if ($env.PWD | str starts-with $home_path) {
           $type = 'home'
-          $bdir = $nu.home-path
+          $bdir = $home_path
         }
       }
 
